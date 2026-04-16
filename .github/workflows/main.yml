@@ -1,0 +1,27 @@
+name: Nickel Daily Update
+
+on:
+  schedule:
+    - cron: '0 1 * * *' # Chạy tự động lúc 8h sáng hàng ngày (giờ VN)
+  workflow_dispatch:     # Dòng này cực quan trọng để bạn có thể bấm nút CHẠY THỬ ngay lập tức
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install selenium webdriver-manager beautifulsoup4 gspread oauth2client
+
+      - name: Run Python script
+        env:
+          G_SHEET_CONFIG: ${{ secrets.G_SHEET_CONFIG }}
+        run: python update_nikel.py
