@@ -2,20 +2,22 @@ name: Nickel Daily Update
 
 on:
   schedule:
-    - cron: '0 1 * * *' # Chạy tự động lúc 8h sáng hàng ngày (giờ VN)
-  workflow_dispatch:     # Dòng này cực quan trọng để bạn có thể bấm nút CHẠY THỬ ngay lập tức
+    - cron: "0 1 * * *" # 8h sáng giờ VN
+  workflow_dispatch: # Để bấm chạy tay
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        # Cập nhật từ v3 lên v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        # Cập nhật từ v4 lên v5
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
@@ -24,4 +26,5 @@ jobs:
       - name: Run Python script
         env:
           G_SHEET_CONFIG: ${{ secrets.G_SHEET_CONFIG }}
+        # Đảm bảo tên file này khớp với file .py của bạn
         run: python update_nikel.py
