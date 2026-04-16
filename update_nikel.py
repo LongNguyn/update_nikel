@@ -60,7 +60,7 @@ def main():
         client = gspread.authorize(creds)
         
         # Mở Sheet (Thay tên chính xác của bạn vào đây)
-        sheet = client.open("Tên Google Sheet của bạn").sheet1 
+        sheet = client.open("Nikel").sheet1 
 
         # Kiểm tra trùng ngày
         existing_dates = sheet.col_values(1)
