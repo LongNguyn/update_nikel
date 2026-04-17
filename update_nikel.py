@@ -9,6 +9,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
+def swap_number_format(value):
+    if not value:
+        return value
+    return value.replace(",", "#").replace(".", ",").replace("#", ".")
+
 def get_nickel_to_apps_script():
     options = Options()
     options.add_argument("--headless")  # Bật để chạy ổn định
@@ -44,12 +49,12 @@ def get_nickel_to_apps_script():
                 clean_change = change_val.replace("+", "")
                 result.append({
                     "date": cols[0],
-                    "last": cols[1],
-                    "open": cols[2],
-                    "high": cols[3],
-                    "low": cols[4],
+                    "last": swap_number_format(cols[1]),
+                    "open": swap_number_format(cols[2]),
+                    "high": swap_number_format(cols[3]),
+                    "low": swap_number_format(cols[4]),
                     "volume": cols[5],
-                    "change": clean_change
+                    "change": swap_number_format(clean_change)
                 })
 
         # --- PHẦN TRUYỀN DỮ LIỆU VÀO APPS SCRIPT ---
