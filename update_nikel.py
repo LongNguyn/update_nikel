@@ -57,7 +57,7 @@ def get_nickel_to_apps_script():
             result.reverse()
             print("Đã lấy được dữ liệu!")
             # Thay URL Web App của bạn vào đây
-            APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxc9oleAwi1wLBsrhtmURBOoHSg9I7d7iT90eYJK0aYpTWQDMpQkXPvms173xQUasm6ZA/exec"
+            APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyd7rfdh1YC2cC_RRSpqWqX3XYV4IFWUMdQUCmyViCmFjZEr-0B8PjsTvK72atmq2Zs/exec"
             
             # Truyền cả mảng result dưới dạng JSON
             response = requests.post(APPS_SCRIPT_URL, json={"data": result})
