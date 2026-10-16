@@ -1,78 +1,81 @@
-import requests
+"""
+Job hằng ngày: lấy dữ liệu Niken 30 ngày gần nhất từ Investing và gửi vào Apps Script.
+Thay cho bản Selenium cũ (bị Investing chặn Chrome headless từ khoảng 18/06/2026).
+
+Cần: pip install curl_cffi requests
+"""
 import json
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
+from datetime import datetime, date, timedelta
+
+import requests
+from curl_cffi import requests as creq
+
+INSTRUMENT_ID = "959208"  # Hợp đồng Tương lai Niken (NICKELc1)
+DAYS_BACK = 30
+PAGE_URL = "https://vn.investing.com/commodities/nickel-historical-data"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzFDlZtv3aA0wFwvpR8dX6YoaA-Pd0Z8XXl6GN_V4ZocLwApPlpn4wTwsNR-uiSfGzNYw/exec"
+PROFILES = ("chrome124", "chrome", "safari17_0", "edge101")
+
 
 def swap_number_format(value):
     if not value:
         return value
     return value.replace(",", "#").replace(".", ",").replace("#", ".")
 
+
+def to_row(item):
+    d = datetime.fromisoformat(str(item["rowDateTimestamp"]).replace("Z", "+00:00"))
+    chg = item.get("change_precentRaw")
+    change = f"{float(chg):.2f}%" if chg not in (None, "") else str(item.get("change_precent", "")).replace("+", "")
+    return {
+        "date": d.strftime("%d/%m/%Y"),
+        "last": swap_number_format(item.get("last_close", "")),
+        "open": swap_number_format(item.get("last_open", "")),
+        "high": swap_number_format(item.get("last_max", "")),
+        "low": swap_number_format(item.get("last_min", "")),
+        "volume": str(item.get("volume", "") or ""),
+        "change": swap_number_format(change),
+    }
+
+
+def fetch(start, end):
+    url = (
+        f"https://api.investing.com/api/financialdata/historical/{INSTRUMENT_ID}"
+        f"?start-date={start}&end-date={end}&time-frame=Daily&add-missing-rows=false"
+    )
+    headers = {
+        "domain-id": "vn",
+        "Accept": "application/json, text/plain, */*",
+        "Origin": "https://vn.investing.com",
+        "Referer": PAGE_URL,
+    }
+    errors = []
+    for profile in PROFILES:
+        try:
+            r = creq.get(url, headers=headers, impersonate=profile, timeout=30)
+            if r.status_code == 200 and r.text.strip().startswith("{"):
+                return json.loads(r.text).get("data") or []
+            errors.append(f"{profile}: HTTP {r.status_code}")
+        except Exception as e:
+            errors.append(f"{profile}: {e}")
+    raise RuntimeError("Không gọi được API -> " + " | ".join(errors))
+
+
 def get_nickel_to_apps_script():
-    options = Options()
-    options.add_argument("--headless")  # Bật để chạy ổn định
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    # Thêm User-Agent để tránh bị Investing chặn ngay lập tức (Gây lỗi Timeout)
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-
-    # 🔥 chống detect
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-
     try:
-        driver.get("https://vn.investing.com/commodities/nickel-historical-data")
-
-        # ✅ đợi table load (Tăng lên 20s vì Investing load khá chậm)
-        wait = WebDriverWait(driver, 20)
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table tbody tr")))
-
-        soup = BeautifulSoup(driver.page_source, "html.parser")
-        driver.quit()
-
-        rows = soup.select("table tbody tr")
-        result = []
-
-        for row in rows:
-            cols = [c.text.strip() for c in row.find_all("td")]
-            if len(cols) >= 6:
-                change_val = cols[6] if len(cols) > 6 else ""
-                clean_change = change_val.replace("+", "")
-                result.append({
-                    "date": cols[0],
-                    "last": swap_number_format(cols[1]),
-                    "open": swap_number_format(cols[2]),
-                    "high": swap_number_format(cols[3]),
-                    "low": swap_number_format(cols[4]),
-                    "volume": cols[5],
-                    "change": swap_number_format(clean_change)
-                })
-
-        # --- PHẦN TRUYỀN DỮ LIỆU VÀO APPS SCRIPT ---
-        if result:
-            result.reverse()
-            print("Đã lấy được dữ liệu!")
-            # Thay URL Web App của bạn vào đây
-            APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzFDlZtv3aA0wFwvpR8dX6YoaA-Pd0Z8XXl6GN_V4ZocLwApPlpn4wTwsNR-uiSfGzNYw/exec"
-            
-            # Truyền cả mảng result dưới dạng JSON
-            response = requests.post(APPS_SCRIPT_URL, json={"data": result})
-            return f"Đã gửi {len(result)} dòng. Apps Script phản hồi: {response.text}"
-        else:
+        end = date.today()
+        start = end - timedelta(days=DAYS_BACK)
+        items = fetch(start.isoformat(), end.isoformat())
+        if not items:
             return "Không lấy được dữ liệu."
-
+        result = [to_row(it) for it in items]
+        result.sort(key=lambda r: datetime.strptime(r["date"], "%d/%m/%Y"))  # cũ -> mới
+        print(f"Đã lấy được dữ liệu! {result[0]['date']} -> {result[-1]['date']}")
+        response = requests.post(APPS_SCRIPT_URL, json={"data": result}, timeout=120)
+        return f"Đã gửi {len(result)} dòng. Apps Script phản hồi: {response.text}"
     except Exception as e:
-        if 'driver' in locals(): driver.quit()
-        return f"Lỗi: {str(e)}"
+        return f"Lỗi: {e}"
+
 
 if __name__ == "__main__":
     print(get_nickel_to_apps_script())
